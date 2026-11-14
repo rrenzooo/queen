@@ -1,6 +1,11 @@
 import unittest
 
-from server import hash_password, validate_order_items, verify_password
+from server import (
+    hash_password,
+    validate_order_items,
+    validate_product_model_upload,
+    verify_password,
+)
 
 
 class FakeProductConnection:
@@ -71,6 +76,19 @@ class AccountAndOrderTests(unittest.TestCase):
                 FakeProductConnection([]),
                 [{"boxTier": {"unexpected": "value"}, "size": "M", "quantity": 1}],
             )
+
+    def test_product_model_upload_accepts_valid_glb_v2(self):
+        model_data = b"glTF" + (2).to_bytes(4, "little") + (20).to_bytes(4, "little") + b"\x00" * 8
+
+        validate_product_model_upload("camisa-siena", model_data)
+
+    def test_product_model_upload_rejects_invalid_glb_and_product_id(self):
+        invalid_glb = b"glTF" + (1).to_bytes(4, "little") + (20).to_bytes(4, "little") + b"\x00" * 8
+
+        with self.assertRaisesRegex(ValueError, "GLB 2.0 válido"):
+            validate_product_model_upload("camisa-siena", invalid_glb)
+        with self.assertRaisesRegex(ValueError, "identificador"):
+            validate_product_model_upload("../other-product", invalid_glb)
 
 
 if __name__ == "__main__":

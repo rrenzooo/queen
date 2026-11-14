@@ -27,6 +27,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 GEMINI_MODEL = "gemini-3.5-flash-lite"
 MAX_BODY_BYTES = 16_384
+MAX_PRODUCT_MODEL_BYTES = 25 * 1024 * 1024
 MAX_MESSAGE_LENGTH = 1_200
 RATE_LIMIT = 12
 RATE_WINDOW_SECONDS = 60
@@ -59,6 +60,7 @@ CONTACT_EMAIL_PATTERN = re.compile(
     r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?"
     r"(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+\Z"
 )
+PRODUCT_MODEL_ID_PATTERN = re.compile(r"[a-z0-9][a-z0-9-]{0,119}\Z")
 request_times = {}
 contact_request_times = {}
 auth_request_times = {}
@@ -135,6 +137,13 @@ DATABASE_SCHEMA = (
         unit_price NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0)
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS product_models (
+        product_id TEXT PRIMARY KEY,
+        glb_data BYTEA NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
 )
 
 DEFAULT_PRODUCTS = (
@@ -198,6 +207,19 @@ def verify_password(password, encoded_hash):
         return False
     actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
     return hmac.compare_digest(actual, expected)
+
+
+def validate_product_model_upload(product_id, model_data):
+    if not isinstance(product_id, str) or not PRODUCT_MODEL_ID_PATTERN.fullmatch(product_id):
+        raise ValueError("El identificador de la prenda no es válido.")
+    if not isinstance(model_data, bytes) or not 20 <= len(model_data) <= MAX_PRODUCT_MODEL_BYTES:
+        raise ValueError("El archivo debe pesar menos de 25 MB y ser un GLB válido.")
+    if (
+        model_data[:4] != b"glTF"
+        or int.from_bytes(model_data[4:8], "little") != 2
+        or int.from_bytes(model_data[8:12], "little") != len(model_data)
+    ):
+        raise ValueError("El archivo no parece ser un modelo GLB 2.0 válido.")
 
 
 DUMMY_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
@@ -435,6 +457,39 @@ class QueenHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_product_model(self, model_data):
+        self.send_response(200)
+        self.send_header("Content-Type", "model/gltf-binary")
+        self.send_header("Content-Length", str(len(model_data)))
+        self.send_header("Cache-Control", "public, max-age=300")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_cors_headers()
+        self.end_headers()
+        self.wfile.write(model_data)
+
+    def read_product_model(self, product_id):
+        if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/octet-stream":
+            self.send_json(415, {"error": "El archivo debe enviarse como datos binarios."})
+            return None
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self.send_json(400, {"error": "El tamaño del archivo no es válido."})
+            return None
+        if content_length <= 0 or content_length > MAX_PRODUCT_MODEL_BYTES:
+            self.send_json(413, {"error": "El archivo está vacío o supera el límite de 25 MB."})
+            return None
+        model_data = self.rfile.read(content_length)
+        if len(model_data) != content_length:
+            self.send_json(400, {"error": "No pudimos recibir el archivo completo."})
+            return None
+        try:
+            validate_product_model_upload(product_id, model_data)
+        except ValueError as error:
+            self.send_json(400, {"error": str(error)})
+            return None
+        return model_data
+
     def read_json_payload(self, maximum_bytes=MAX_BODY_BYTES):
         if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
             self.send_json(415, {"error": "La solicitud debe enviarse como JSON."})
@@ -456,6 +511,90 @@ class QueenHandler(SimpleHTTPRequestHandler):
             self.send_json(400, {"error": "El formato de la solicitud no es válido."})
             return None
         return payload
+
+    def handle_product_model_list(self):
+        if not DATABASE_URL:
+            self.send_json(503, {"error": "Los modelos 3D no están disponibles en este momento."})
+            return
+        try:
+            with get_database_connection() as connection:
+                model_ids = [
+                    row[0]
+                    for row in connection.execute(
+                        "SELECT product_id FROM product_models ORDER BY product_id"
+                    ).fetchall()
+                ]
+        except psycopg.Error as error:
+            self.log_error("No se pudieron cargar los modelos 3D: %s", error)
+            self.send_json(503, {"error": "No pudimos cargar los modelos 3D de la tienda."})
+            return
+        self.send_json(200, {"modelIds": model_ids})
+
+    def handle_product_model_download(self, product_id):
+        if not PRODUCT_MODEL_ID_PATTERN.fullmatch(product_id):
+            self.send_json(404, {"error": "No encontramos ese modelo 3D."})
+            return
+        if not DATABASE_URL:
+            self.send_json(503, {"error": "Los modelos 3D no están disponibles en este momento."})
+            return
+        try:
+            with get_database_connection() as connection:
+                row = connection.execute(
+                    "SELECT glb_data FROM product_models WHERE product_id = %s",
+                    (product_id,),
+                ).fetchone()
+        except psycopg.Error as error:
+            self.log_error("No se pudo cargar el modelo 3D %s: %s", product_id, error)
+            self.send_json(503, {"error": "No pudimos cargar el modelo 3D de esta prenda."})
+            return
+        if not row:
+            self.send_json(404, {"error": "No encontramos ese modelo 3D."})
+            return
+        self.send_product_model(bytes(row[0]))
+
+    def handle_product_model_upload(self, product_id):
+        if not self.require_admin():
+            return
+        if not PRODUCT_MODEL_ID_PATTERN.fullmatch(product_id):
+            self.send_json(404, {"error": "No encontramos esa prenda."})
+            return
+        model_data = self.read_product_model(product_id)
+        if model_data is None:
+            return
+        try:
+            with get_database_connection() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO product_models (product_id, glb_data)
+                    VALUES (%s, %s)
+                    ON CONFLICT (product_id) DO UPDATE
+                    SET glb_data = EXCLUDED.glb_data, updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (product_id, model_data),
+                )
+        except psycopg.Error as error:
+            self.log_error("No se pudo guardar el modelo 3D %s: %s", product_id, error)
+            self.send_json(503, {"error": "No pudimos guardar el modelo 3D en el servidor."})
+            return
+        self.send_json(200, {"productId": product_id, "saved": True})
+
+    def handle_product_model_delete(self, product_id):
+        if not self.require_admin():
+            return
+        if not PRODUCT_MODEL_ID_PATTERN.fullmatch(product_id):
+            self.send_json(404, {"error": "No encontramos esa prenda."})
+            return
+        try:
+            with get_database_connection() as connection:
+                connection.execute(
+                    "DELETE FROM product_models WHERE product_id = %s",
+                    (product_id,),
+                )
+        except psycopg.Error as error:
+            self.log_error("No se pudo quitar el modelo 3D %s: %s", product_id, error)
+            self.send_json(503, {"error": "No pudimos quitar el modelo 3D del servidor."})
+            return
+        self.send_json(200, {"productId": product_id, "deleted": True})
 
     def authenticated_user(self, required=True):
         authorization = self.headers.get("Authorization", "")
@@ -799,11 +938,16 @@ class QueenHandler(SimpleHTTPRequestHandler):
         self.send_json(200, {"id": row[0], "status": FULFILLMENT_LABELS[row[1]]})
 
     def do_OPTIONS(self):
-        if urlsplit(self.path).path not in {
+        path = urlsplit(self.path).path
+        if path not in {
             "/api/health", "/api/stylist", "/api/contact", "/api/register",
             "/api/login", "/api/logout", "/api/me", "/api/orders",
-            "/api/admin/orders",
-        } and not urlsplit(self.path).path.startswith("/api/admin/orders/"):
+            "/api/admin/orders", "/api/product-models",
+        } and not (
+            path.startswith("/api/admin/orders/")
+            or path.startswith("/api/admin/product-models/")
+            or path.startswith("/api/product-models/")
+        ):
             self.send_error(404)
             return
         origin = self.headers.get("Origin", "").rstrip("/")
@@ -812,7 +956,7 @@ class QueenHandler(SimpleHTTPRequestHandler):
             return
         self.send_response(204)
         self.send_cors_headers()
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Accept, Authorization, Content-Type")
         self.send_header("Access-Control-Max-Age", "600")
         self.send_header("Content-Length", "0")
@@ -820,6 +964,7 @@ class QueenHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        decoded_path = unquote(path)
         if path == "/api/health":
             database_available = False
             if DATABASE_URL:
@@ -852,6 +997,17 @@ class QueenHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/admin/orders":
             self.handle_admin_orders()
+            return
+        if path == "/api/product-models":
+            self.handle_product_model_list()
+            return
+        product_model_prefix = "/api/product-models/"
+        if decoded_path.startswith(product_model_prefix):
+            product_id = decoded_path[len(product_model_prefix):]
+            if not product_id or "/" in product_id:
+                self.send_json(404, {"error": "No encontramos ese modelo 3D."})
+                return
+            self.handle_product_model_download(product_id)
             return
         requested_path = unquote(urlsplit(self.path).path).replace("\\", "/").lower()
         if requested_path.endswith((".py", ".pyc")) or "__pycache__" in requested_path.split("/"):
@@ -930,6 +1086,7 @@ class QueenHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlsplit(self.path).path
+        decoded_path = unquote(path)
         if path == "/api/contact":
             self.handle_contact_submission()
             return
@@ -944,6 +1101,14 @@ class QueenHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/orders":
             self.handle_create_order()
+            return
+        product_model_prefix = "/api/admin/product-models/"
+        if decoded_path.startswith(product_model_prefix):
+            product_id = decoded_path[len(product_model_prefix):]
+            if not product_id or "/" in product_id:
+                self.send_json(404, {"error": "No encontramos esa prenda."})
+                return
+            self.handle_product_model_upload(product_id)
             return
         if path != "/api/stylist":
             self.send_json(404, {"error": "No encontramos ese recurso."})
@@ -1080,6 +1245,18 @@ class QueenHandler(SimpleHTTPRequestHandler):
             self.send_json(404, {"error": "No encontramos ese pedido."})
             return
         self.handle_update_order(order_number)
+
+    def do_DELETE(self):
+        path = unquote(urlsplit(self.path).path)
+        prefix = "/api/admin/product-models/"
+        if not path.startswith(prefix):
+            self.send_json(404, {"error": "No encontramos ese recurso."})
+            return
+        product_id = path[len(prefix):]
+        if not product_id or "/" in product_id:
+            self.send_json(404, {"error": "No encontramos esa prenda."})
+            return
+        self.handle_product_model_delete(product_id)
 
 
 if __name__ == "__main__":

@@ -295,6 +295,8 @@ const productModelDatabaseName = "queen-product-models-v1";
 const productModelStoreName = "models";
 const maxProductModelBytes = 25 * 1024 * 1024;
 const productModelIds = new Set();
+const remoteProductModelIds = new Set();
+const localProductModelIds = new Set();
 let productModelDatabasePromise;
 
 function saveAuthSession(session) {
@@ -406,22 +408,6 @@ async function getProductModel(productId) {
   });
 }
 
-async function saveProductModel(productId, file) {
-  const database = await openProductModelDatabase();
-  return new Promise((resolve, reject) => {
-    const transaction = database.transaction(productModelStoreName, "readwrite");
-    transaction.objectStore(productModelStoreName).put({
-      productId,
-      fileName: file.name,
-      blob: file,
-      updatedAt: new Date().toISOString(),
-    });
-    transaction.oncomplete = resolve;
-    transaction.onerror = () => reject(transaction.error || new Error("No pudimos guardar el archivo 3D."));
-    transaction.onabort = () => reject(transaction.error || new Error("No pudimos guardar el archivo 3D."));
-  });
-}
-
 async function deleteProductModel(productId) {
   const database = await openProductModelDatabase();
   return new Promise((resolve, reject) => {
@@ -431,6 +417,63 @@ async function deleteProductModel(productId) {
     transaction.onerror = () => reject(transaction.error || new Error("No pudimos quitar el modelo 3D."));
     transaction.onabort = () => reject(transaction.error || new Error("No pudimos quitar el modelo 3D."));
   });
+}
+
+function updateProductModelIds() {
+  productModelIds.clear();
+  remoteProductModelIds.forEach((productId) => productModelIds.add(productId));
+  localProductModelIds.forEach((productId) => productModelIds.add(productId));
+  refreshPublicCatalog();
+  renderAdminProducts();
+}
+
+async function refreshRemoteProductModelIds() {
+  const response = await apiRequest("/api/product-models");
+  if (!Array.isArray(response.modelIds) || response.modelIds.some((id) => typeof id !== "string")) {
+    throw new Error("El servidor devolvió una lista de modelos 3D inválida.");
+  }
+  remoteProductModelIds.clear();
+  response.modelIds.forEach((productId) => remoteProductModelIds.add(productId));
+  updateProductModelIds();
+}
+
+async function syncLegacyProductModels() {
+  try {
+    await refreshRemoteProductModelIds();
+    const localIds = await loadProductModelIds();
+    for (const productId of localIds) {
+      const record = await getProductModel(productId);
+      if (!record || !(record.blob instanceof Blob)) {
+        await deleteProductModel(productId);
+        localProductModelIds.delete(productId);
+        continue;
+      }
+      if (!remoteProductModelIds.has(productId)) {
+        await apiRequest(`/api/admin/product-models/${encodeURIComponent(productId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/octet-stream" },
+          body: record.blob,
+        });
+        remoteProductModelIds.add(productId);
+      }
+      await deleteProductModel(productId);
+      localProductModelIds.delete(productId);
+    }
+    updateProductModelIds();
+  } catch (error) {
+    console.error("No se pudieron compartir los modelos 3D guardados en este navegador.", error);
+    showToast(error.message || "No pudimos compartir los modelos 3D guardados en este navegador.");
+  }
+}
+
+async function removeStoredProductModel(productId) {
+  await apiRequest(`/api/admin/product-models/${encodeURIComponent(productId)}`, {
+    method: "DELETE",
+  });
+  if (localProductModelIds.has(productId)) await deleteProductModel(productId);
+  remoteProductModelIds.delete(productId);
+  localProductModelIds.delete(productId);
+  updateProductModelIds();
 }
 
 async function validateGlbFile(file) {
@@ -457,11 +500,14 @@ async function handleProductModelUpload(input) {
   input.disabled = true;
   try {
     await validateGlbFile(file);
-    await saveProductModel(product.id, file);
-    productModelIds.add(product.id);
-    refreshPublicCatalog();
-    renderAdminProducts();
-    showToast(`Modelo 3D de ${product.name} guardado en este navegador.`);
+    await apiRequest(`/api/admin/product-models/${encodeURIComponent(product.id)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/octet-stream" },
+      body: file,
+    });
+    remoteProductModelIds.add(product.id);
+    updateProductModelIds();
+    showToast(`Modelo 3D de ${product.name} compartido con todos los dispositivos.`);
   } catch (error) {
     console.error("No se pudo guardar el modelo 3D del producto.", error);
     showToast(error.message || "No pudimos guardar el modelo 3D.");
@@ -475,10 +521,7 @@ async function removeProductModel(productId) {
   const product = products.find((item) => item.id === productId);
   if (!product || !window.confirm(`¿Quitar el modelo 3D de ${product.name}?`)) return;
   try {
-    await deleteProductModel(productId);
-    productModelIds.delete(productId);
-    refreshPublicCatalog();
-    renderAdminProducts();
+    await removeStoredProductModel(productId);
     showToast(`Quitamos el modelo 3D de ${product.name}.`);
   } catch (error) {
     console.error("No se pudo quitar el modelo 3D del producto.", error);
@@ -492,18 +535,42 @@ async function openProductModel(productId) {
   if (!customElements.get("model-viewer")) {
     throw new Error("El visor 3D no está disponible. Revisá la conexión a internet e intentá de nuevo.");
   }
-  const record = await getProductModel(productId);
-  if (!record || !(record.blob instanceof Blob)) {
-    productModelIds.delete(productId);
-    refreshPublicCatalog();
-    renderAdminProducts();
-    throw new Error("No encontramos el archivo 3D guardado para esta prenda.");
+  let modelBlob = null;
+  let remoteError = null;
+  try {
+    const response = await fetch(apiUrl(`/api/product-models/${encodeURIComponent(productId)}`), {
+      headers: { Accept: "model/gltf-binary" },
+    });
+    if (response.ok) {
+      modelBlob = await response.blob();
+    } else if (response.status !== 404) {
+      let responseBody;
+      try {
+        responseBody = await response.json();
+      } catch {
+        throw new Error("El servidor devolvió una respuesta inválida al cargar el modelo 3D.");
+      }
+      throw new Error(responseBody.error || "No pudimos cargar el modelo 3D.");
+    }
+  } catch (error) {
+    remoteError = error;
+  }
+  if (!modelBlob) {
+    const record = await getProductModel(productId);
+    if (record?.blob instanceof Blob) {
+      modelBlob = record.blob;
+    } else {
+      productModelIds.delete(productId);
+      refreshPublicCatalog();
+      renderAdminProducts();
+      throw remoteError || new Error("No encontramos el archivo 3D guardado para esta prenda.");
+    }
   }
   const dialog = $("[data-model-viewer-dialog]");
   const viewer = $("[data-model-viewer]", dialog);
   if (dialog.open) dialog.close();
   releaseProductModelViewer();
-  const objectUrl = URL.createObjectURL(record.blob);
+  const objectUrl = URL.createObjectURL(modelBlob);
   viewer.dataset.objectUrl = objectUrl;
   viewer.src = objectUrl;
   viewer.alt = `Modelo 3D de ${product.name}`;
@@ -1553,6 +1620,7 @@ async function restoreAuthSession() {
     const response = await apiRequest("/api/me");
     authSession.user = response.user;
     updateAccountUI();
+    if (response.user.role === "admin") await syncLegacyProductModels();
   } catch (error) {
     console.error("La sesión guardada de Queen ya no es válida.", error);
     if (error.status === 401) clearAuthSession();
@@ -1627,6 +1695,7 @@ async function submitLogin(event) {
       closeOverlay();
       openAdminPanel();
       loadAdminOrders();
+      syncLegacyProductModels();
       return;
     }
     $("[data-login-message]").textContent = isRegistration
@@ -1857,8 +1926,7 @@ document.addEventListener("click", (event) => {
       products.splice(products.indexOf(product), 1);
       if (saveAdminStorage(adminStorageKeys.products, products)) {
         if (productModelIds.has(product.id)) {
-          deleteProductModel(product.id)
-            .then(() => productModelIds.delete(product.id))
+          removeStoredProductModel(product.id)
             .catch((error) => {
               console.error("No se pudo borrar el modelo 3D del producto eliminado.", error);
               showToast("El producto se eliminó, pero no pudimos borrar su archivo 3D.");
@@ -2018,14 +2086,17 @@ productModelDialog.addEventListener("close", () => {
 });
 loadProductModelIds()
   .then((ids) => {
-    ids.forEach((productId) => productModelIds.add(productId));
-    refreshPublicCatalog();
-    renderAdminProducts();
+    ids.forEach((productId) => localProductModelIds.add(productId));
+    updateProductModelIds();
   })
   .catch((error) => {
-    console.error("No se pudieron cargar los modelos 3D guardados.", error);
-    showToast("No pudimos cargar los modelos 3D de este navegador.");
+    console.error("No se pudieron cargar los modelos 3D guardados localmente.", error);
+    showToast("No pudimos cargar los modelos 3D guardados en este navegador.");
   });
+refreshRemoteProductModelIds().catch((error) => {
+  console.error("No se pudieron cargar los modelos 3D compartidos.", error);
+  showToast(error.message || "No pudimos cargar los modelos 3D compartidos.");
+});
 $("[data-admin-product-search]").addEventListener("input", (event) => {
   adminProductSearch = event.target.value;
   renderAdminProducts();

@@ -13,11 +13,14 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from urllib.parse import unquote, urlsplit
 
+import psycopg
+
 
 ROOT = Path(__file__).resolve().parent
 HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "4173"))
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 GEMINI_MODEL = "gemini-3.5-flash-lite"
 MAX_BODY_BYTES = 16_384
 MAX_MESSAGE_LENGTH = 1_200
@@ -51,6 +54,86 @@ request_times_lock = threading.Lock()
 
 def get_api_key():
     return GEMINI_API_KEY
+
+
+DATABASE_SCHEMA = (
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS user_sessions (
+        token_hash CHAR(64) PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS products (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        subtitle TEXT NOT NULL DEFAULT '',
+        category TEXT NOT NULL,
+        price NUMERIC(12, 2) NOT NULL CHECK (price >= 0),
+        stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
+        image_url TEXT NOT NULL DEFAULT '',
+        active BOOLEAN NOT NULL DEFAULT TRUE,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS orders (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        order_number TEXT NOT NULL UNIQUE,
+        user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+        customer_name TEXT NOT NULL,
+        customer_email TEXT NOT NULL,
+        department TEXT NOT NULL,
+        locality TEXT NOT NULL,
+        postal_code TEXT NOT NULL,
+        shipping_address TEXT NOT NULL,
+        payment_method TEXT NOT NULL,
+        payment_status TEXT NOT NULL DEFAULT 'pending'
+            CHECK (payment_status IN ('pending', 'paid', 'failed', 'cancelled', 'refunded')),
+        fulfillment_status TEXT NOT NULL DEFAULT 'pending'
+            CHECK (fulfillment_status IN ('pending', 'preparing', 'shipped', 'delivered', 'cancelled')),
+        subtotal NUMERIC(12, 2) NOT NULL CHECK (subtotal >= 0),
+        shipping_cost NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (shipping_cost >= 0),
+        total NUMERIC(12, 2) NOT NULL CHECK (total >= 0),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS order_items (
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        product_id TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        size TEXT NOT NULL,
+        quantity INTEGER NOT NULL CHECK (quantity > 0),
+        unit_price NUMERIC(12, 2) NOT NULL CHECK (unit_price >= 0)
+    )
+    """,
+)
+
+
+def get_database_connection():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL no está configurada.")
+    return psycopg.connect(DATABASE_URL, connect_timeout=10)
+
+
+def initialize_database():
+    with get_database_connection() as connection:
+        for statement in DATABASE_SCHEMA:
+            connection.execute(statement)
 
 
 def clean_text(value, limit):
@@ -136,9 +219,26 @@ class QueenHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/health":
+            database_available = False
+            if DATABASE_URL:
+                try:
+                    with get_database_connection() as connection:
+                        connection.execute("SELECT 1")
+                    database_available = True
+                except psycopg.Error as error:
+                    self.log_error("No se pudo conectar con PostgreSQL: %s", error)
+                    self.send_json(503, {
+                        "configured": bool(get_api_key()),
+                        "contactConfigured": bool(SMTP_USER and SMTP_APP_PASSWORD),
+                        "databaseConfigured": True,
+                        "databaseAvailable": False,
+                    })
+                    return
             self.send_json(200, {
                 "configured": bool(get_api_key()),
                 "contactConfigured": bool(SMTP_USER and SMTP_APP_PASSWORD),
+                "databaseConfigured": bool(DATABASE_URL),
+                "databaseAvailable": database_available,
             })
             return
         requested_path = unquote(urlsplit(self.path).path).replace("\\", "/").lower()
@@ -346,6 +446,11 @@ class QueenHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    if DATABASE_URL:
+        initialize_database()
+        print("PostgreSQL conectado; tablas listas.")
+    else:
+        print("PostgreSQL no configurado: agregá DATABASE_URL en el entorno para habilitar datos persistentes.")
     server = ThreadingHTTPServer((HOST, PORT), QueenHandler)
     print(f"Queen disponible en http://{HOST}:{PORT}/")
     if not get_api_key():

@@ -281,6 +281,8 @@ const localAmount = new Intl.NumberFormat("es-UY", {
 });
 const formatCurrency = (amount) => `$U ${localAmount.format(amount)}`;
 const freeShippingThreshold = 5000;
+const authStorageKey = "queen-auth-session-v1";
+let authSession = null;
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const stylistHistory = [];
@@ -294,6 +296,44 @@ const productModelStoreName = "models";
 const maxProductModelBytes = 25 * 1024 * 1024;
 const productModelIds = new Set();
 let productModelDatabasePromise;
+
+function saveAuthSession(session) {
+  authSession = session;
+  try {
+    sessionStorage.setItem(authStorageKey, JSON.stringify(session));
+  } catch (error) {
+    console.error("No se pudo guardar la sesión de Queen en esta pestaña.", error);
+    showToast("La sesión estará disponible solo hasta que cierres esta pestaña.");
+  }
+}
+
+function clearAuthSession() {
+  authSession = null;
+  try {
+    sessionStorage.removeItem(authStorageKey);
+  } catch (error) {
+    console.error("No se pudo borrar la sesión guardada de Queen.", error);
+  }
+}
+
+async function apiRequest(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set("Accept", "application/json");
+  if (authSession?.token) headers.set("Authorization", `Bearer ${authSession.token}`);
+  const response = await fetch(apiUrl(path), { ...options, headers });
+  let responseBody;
+  try {
+    responseBody = await response.json();
+  } catch {
+    throw new Error("El servidor devolvió una respuesta inválida.");
+  }
+  if (!response.ok) {
+    const error = new Error(responseBody.error || "No pudimos completar la solicitud.");
+    error.status = response.status;
+    throw error;
+  }
+  return responseBody;
+}
 
 function readAdminStorage(key) {
   try {
@@ -1209,6 +1249,7 @@ function addMysteryBoxToCart() {
     image: items[0].image,
     alt: `Prendas sorpresa de la caja Queen: ${items.map((item) => item.name).join(", ")}`,
     mysteryBox: true,
+    boxTier: tier,
     contents: items,
     packageOptions: {
       style: style === "eco" ? "Eco natural" : "Queen premium",
@@ -1222,7 +1263,7 @@ function addMysteryBoxToCart() {
   currentBoxResult.addedToCart = true;
   $("[data-add-mystery]").disabled = true;
   renderCart();
-  showToast("Tu caja de muestra se agregó al carrito. No se realizará ningún cobro.");
+  showToast("Tu caja se agregó al carrito. El pedido quedará pendiente; no se realizará ningún cobro.");
 }
 
 function updateAdminNavigation(pageName) {
@@ -1259,7 +1300,7 @@ function closeAdminPanel() {
   panel.hidden = true;
   document.body.classList.remove("locked");
   setLoginMode("customer");
-  showToast("Saliste del panel de administración de muestra.");
+  showToast("Saliste del panel de administración.");
 }
 
 function openAdminEditor(product = null) {
@@ -1380,16 +1421,16 @@ function renderAdminOrders() {
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
   const rows = filtered.map((order) => `
     <tr>
-      <td><strong class="admin-order-id">${escapeHTML(order.id)}</strong><small class="admin-order-source">Pedido de muestra</small></td>
-      <td>Cliente demo</td>
+      <td><strong class="admin-order-id">${escapeHTML(order.id)}</strong><small class="admin-order-source">Pago: ${escapeHTML(order.paymentStatus === "pending" ? "pendiente" : order.paymentStatus || "pendiente")}</small></td>
+      <td><strong>${escapeHTML(order.customerName || "Cliente")}</strong><small class="admin-order-source">${escapeHTML(order.customerEmail || "")}</small></td>
       <td class="admin-order-items">${order.items.map(escapeHTML).join(", ")}</td>
       <td>${orderDate(order.createdAt)}</td>
       <td class="admin-price-cell">${formatCurrency(order.total)}</td>
-      <td><label class="sr-only" for="order-status-${escapeHTML(order.id)}">Estado de ${escapeHTML(order.id)}</label><select class="admin-order-status ${statusClass(order.status)}" id="order-status-${escapeHTML(order.id)}" data-admin-order-status="${escapeHTML(order.id)}"><option${order.status === "Pendiente" ? " selected" : ""}>Pendiente</option><option${order.status === "Preparando" ? " selected" : ""}>Preparando</option><option${order.status === "Enviado" ? " selected" : ""}>Enviado</option><option${order.status === "Entregado" ? " selected" : ""}>Entregado</option></select></td>
+      <td><label class="sr-only" for="order-status-${escapeHTML(order.id)}">Estado de ${escapeHTML(order.id)}</label><select class="admin-order-status ${statusClass(order.status)}" id="order-status-${escapeHTML(order.id)}" data-admin-order-status="${escapeHTML(order.id)}"><option${order.status === "Pendiente" ? " selected" : ""}>Pendiente</option><option${order.status === "Preparando" ? " selected" : ""}>Preparando</option><option${order.status === "Enviado" ? " selected" : ""}>Enviado</option><option${order.status === "Entregado" ? " selected" : ""}>Entregado</option>${order.status === "Cancelado" ? '<option selected disabled>Cancelado</option>' : ""}</select></td>
     </tr>`)
     .join("");
   const mobileCards = filtered.map((order) => `
-    <article class="admin-mobile-order"><div><strong>${escapeHTML(order.id)}</strong><span>${orderDate(order.createdAt)} · Cliente demo</span></div><strong>${formatCurrency(order.total)}</strong><p>${order.items.map(escapeHTML).join(" · ")}</p><label>Estado<select class="admin-order-status ${statusClass(order.status)}" data-admin-order-status="${escapeHTML(order.id)}"><option${order.status === "Pendiente" ? " selected" : ""}>Pendiente</option><option${order.status === "Preparando" ? " selected" : ""}>Preparando</option><option${order.status === "Enviado" ? " selected" : ""}>Enviado</option><option${order.status === "Entregado" ? " selected" : ""}>Entregado</option></select></label></article>`)
+    <article class="admin-mobile-order"><div><strong>${escapeHTML(order.id)}</strong><span>${orderDate(order.createdAt)} · ${escapeHTML(order.customerName || "Cliente")}</span><small>${escapeHTML(order.customerEmail || "")} · Pago ${escapeHTML(order.paymentStatus === "pending" ? "pendiente" : order.paymentStatus || "pendiente")}</small></div><strong>${formatCurrency(order.total)}</strong><p>${order.items.map(escapeHTML).join(" · ")}</p><label>Estado<select class="admin-order-status ${statusClass(order.status)}" data-admin-order-status="${escapeHTML(order.id)}"><option${order.status === "Pendiente" ? " selected" : ""}>Pendiente</option><option${order.status === "Preparando" ? " selected" : ""}>Preparando</option><option${order.status === "Enviado" ? " selected" : ""}>Enviado</option><option${order.status === "Entregado" ? " selected" : ""}>Entregado</option>${order.status === "Cancelado" ? '<option selected disabled>Cancelado</option>' : ""}</select></label></article>`)
     .join("");
   $("[data-admin-orders]").innerHTML = rows;
   $("[data-admin-mobile-orders]").innerHTML = mobileCards;
@@ -1441,7 +1482,7 @@ function renderAdminOverview() {
   const maxItemCount = Math.max(...topItems.map(([, count]) => count), 1);
   $("[data-admin-top-products]").innerHTML = topItems.length
     ? topItems.map(([name, count]) => `<div class="admin-top-product"><span>${escapeHTML(name)}</span><span class="admin-top-product-track"><i style="--product-share:${(count / maxItemCount) * 100}%"></i></span><strong>${count} ${count === 1 ? "unidad" : "unidades"}</strong></div>`).join("")
-    : '<p class="admin-no-data">Todavía no hay pedidos de muestra.</p>';
+    : '<p class="admin-no-data">Todavía no hay pedidos registrados.</p>';
 }
 
 function renderAdminDashboard() {
@@ -1468,12 +1509,208 @@ function setLoginMode(mode) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
   });
+  const nameField = $("[data-login-name-field]");
+  nameField.hidden = mode !== "register";
+  $("input", nameField).required = mode === "register";
+  $("#login-password").autocomplete = mode === "register" ? "new-password" : "current-password";
   $("[data-login-submit]").innerHTML = mode === "admin"
-    ? 'Entrar al panel demo <span aria-hidden="true">↗</span>'
-    : 'Iniciar sesión <span aria-hidden="true">↗</span>';
+    ? 'Entrar a administración <span aria-hidden="true">↗</span>'
+    : mode === "register"
+      ? 'Crear cuenta <span aria-hidden="true">↗</span>'
+      : 'Iniciar sesión <span aria-hidden="true">↗</span>';
   $("[data-login-demo-note]").hidden = mode !== "admin";
-  $("[data-login-footnote]").hidden = mode === "admin";
+  $("[data-login-footnote]").hidden = mode !== "customer";
   $("[data-login-message]").textContent = "";
+}
+
+function updateAccountUI() {
+  const accountButton = $(".account-toggle");
+  const accountStatus = $("[data-account-status]");
+  const signedIn = Boolean(authSession?.user);
+  accountButton.setAttribute("aria-label", signedIn ? `Mi cuenta, ${authSession.user.name}` : "Iniciar sesión");
+  accountStatus.hidden = !signedIn;
+  $("[data-account-greeting]").textContent = signedIn
+    ? `Sesión iniciada como ${authSession.user.name} (${authSession.user.email}).`
+    : "";
+  if (signedIn) {
+    $("#checkout-name").value = authSession.user.name;
+    $("#checkout-email").value = authSession.user.email;
+  }
+}
+
+async function restoreAuthSession() {
+  let savedSession;
+  try {
+    savedSession = JSON.parse(sessionStorage.getItem(authStorageKey) || "null");
+  } catch (error) {
+    console.error("No se pudo leer la sesión de Queen de esta pestaña.", error);
+    clearAuthSession();
+    return;
+  }
+  if (!savedSession || typeof savedSession.token !== "string") return;
+  authSession = savedSession;
+  try {
+    const response = await apiRequest("/api/me");
+    authSession.user = response.user;
+    updateAccountUI();
+  } catch (error) {
+    console.error("La sesión guardada de Queen ya no es válida.", error);
+    if (error.status === 401) clearAuthSession();
+    updateAccountUI();
+  }
+}
+
+async function loadAdminOrders() {
+  adminOrders = [];
+  renderAdminDashboard();
+  try {
+    const response = await apiRequest("/api/admin/orders");
+    if (!Array.isArray(response.orders)) throw new Error("El servidor devolvió una lista de pedidos inválida.");
+    adminOrders = response.orders;
+    renderAdminDashboard();
+  } catch (error) {
+    console.error("No se pudieron cargar los pedidos reales de Queen.", error);
+    showToast(error.message || "No pudimos cargar los pedidos.");
+  }
+}
+
+async function updateAdminOrderStatus(statusControl) {
+  const order = adminOrders.find((item) => item.id === statusControl.dataset.adminOrderStatus);
+  if (!order) return;
+  const previousStatus = order.status;
+  statusControl.disabled = true;
+  try {
+    const response = await apiRequest(`/api/admin/orders/${encodeURIComponent(order.id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: statusControl.value }),
+    });
+    order.status = response.status;
+    renderAdminDashboard();
+    showToast(`Actualizamos el estado del pedido ${order.id}.`);
+  } catch (error) {
+    statusControl.value = previousStatus;
+    console.error(`No se pudo actualizar el pedido ${order.id}.`, error);
+    showToast(error.message || "No pudimos actualizar el estado del pedido.");
+  } finally {
+    statusControl.disabled = false;
+  }
+}
+
+async function submitLogin(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const mode = loginMode;
+  const data = new FormData(form);
+  const isRegistration = mode === "register";
+  const submitButton = $("[data-login-submit]");
+  submitButton.disabled = true;
+  $("[data-login-message]").textContent = "";
+  try {
+    const response = await apiRequest(isRegistration ? "/api/register" : "/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: data.get("name"),
+        email: data.get("email"),
+        password: data.get("password"),
+      }),
+    });
+    if (mode === "admin" && response.user.role !== "admin") {
+      throw new Error("Esta cuenta no tiene permisos de administración.");
+    }
+    saveAuthSession({ token: response.token, user: response.user });
+    updateAccountUI();
+    if (response.user.role === "admin" && mode === "admin") {
+      adminOrders = [];
+      form.reset();
+      closeOverlay();
+      openAdminPanel();
+      loadAdminOrders();
+      return;
+    }
+    $("[data-login-message]").textContent = isRegistration
+      ? "¡Cuenta creada! Ya podés finalizar tu compra."
+      : "Sesión iniciada. Ya podés finalizar tu compra.";
+    form.reset();
+    $("#checkout-name").value = response.user.name;
+    $("#checkout-email").value = response.user.email;
+  } catch (error) {
+    console.error("No se pudo iniciar sesión o crear la cuenta.", error);
+    $("[data-login-message]").textContent = error.message || "No pudimos completar el acceso.";
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
+async function logoutAccount() {
+  try {
+    await apiRequest("/api/logout", { method: "POST" });
+    showToast("Cerraste tu sesión.");
+  } catch (error) {
+    console.error("No se pudo revocar la sesión en el servidor.", error);
+    showToast("Cerramos la sesión de esta pestaña, pero no pudimos revocarla en el servidor.");
+  }
+  clearAuthSession();
+  updateAccountUI();
+  $("[data-login-message]").textContent = "";
+}
+
+async function submitCheckout(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const message = $("[data-checkout-message]");
+  const submitButton = $('button[type="submit"]', form);
+  if (cart.size === 0) {
+    message.textContent = "Agregá al menos un artículo antes de confirmar el pedido.";
+    return;
+  }
+  const formData = new FormData(form);
+  const items = [...cart.values()].map((item) => ({
+    productId: item.product.mysteryBox ? undefined : item.product.id,
+    boxTier: item.product.boxTier,
+    size: item.size,
+    quantity: item.quantity,
+  }));
+  submitButton.disabled = true;
+  message.textContent = "Guardando tu pedido…";
+  try {
+    const response = await apiRequest("/api/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: formData.get("name"),
+        email: formData.get("email"),
+        department: formData.get("department"),
+        locality: formData.get("locality"),
+        postalCode: formData.get("postalCode"),
+        address: formData.get("address"),
+        payment: formData.get("payment"),
+        items,
+      }),
+    });
+    const order = response.order;
+    if (!order || typeof order.id !== "string" || order.paymentStatus !== "pending") {
+      throw new Error("El servidor no confirmó el estado pendiente del pedido.");
+    }
+    message.textContent = response.emailsSent
+      ? `Pedido ${order.id} guardado con pago pendiente. No se realizó ningún cobro; te enviamos la confirmación por correo.`
+      : `Pedido ${order.id} guardado con pago pendiente, pero no pudimos confirmar el envío del correo. No se realizó ningún cobro.`;
+    form.reset();
+    if (authSession?.user) updateAccountUI();
+    cart.clear();
+    renderCart();
+    window.setTimeout(() => {
+      closeOverlay();
+      showToast(`Recibimos tu pedido ${order.id}. El pago sigue pendiente.`);
+      if (authSession?.user.role === "admin") loadAdminOrders();
+    }, 3500);
+  } catch (error) {
+    console.error("No se pudo confirmar el pedido de Queen.", error);
+    message.textContent = error.message || "No pudimos guardar tu pedido. No se realizó ningún pago.";
+  } finally {
+    submitButton.disabled = false;
+  }
 }
 
 function saveAdminProduct(event) {
@@ -1598,7 +1835,11 @@ document.addEventListener("click", (event) => {
   if (target.closest("[data-admin-create]")) openAdminEditor();
   if (target.closest("[data-admin-editor-close]")) closeAdminEditor();
   if (target === $("[data-admin-editor-backdrop]")) closeAdminEditor();
-  if (target.closest("[data-admin-logout]")) closeAdminPanel();
+  if (target.closest("[data-admin-logout]")) {
+    closeAdminPanel();
+    logoutAccount();
+  }
+  if (target.closest("[data-account-logout]")) logoutAccount();
   if (target.closest("[data-admin-dismiss-notice]")) $("[data-admin-dismiss-notice]").closest(".admin-demo-banner").hidden = true;
   if (target.closest("[data-admin-help]")) showToast("Panel de demostración: los cambios se guardan en este navegador.");
 
@@ -1804,30 +2045,12 @@ $("[data-admin-order-filter]").addEventListener("change", (event) => {
 $("[data-admin-orders]").addEventListener("change", (event) => {
   const statusControl = event.target.closest("[data-admin-order-status]");
   if (!statusControl) return;
-  const order = adminOrders.find((item) => item.id === statusControl.dataset.adminOrderStatus);
-  if (!order) return;
-  const previousStatus = order.status;
-  order.status = statusControl.value;
-  if (saveAdminStorage(adminStorageKeys.orders, adminOrders)) {
-    renderAdminDashboard();
-    showToast(`Actualizamos el estado del pedido ${order.id}.`);
-  } else {
-    order.status = previousStatus;
-  }
+  updateAdminOrderStatus(statusControl);
 });
 $("[data-admin-mobile-orders]").addEventListener("change", (event) => {
   const statusControl = event.target.closest("[data-admin-order-status]");
   if (!statusControl) return;
-  const order = adminOrders.find((item) => item.id === statusControl.dataset.adminOrderStatus);
-  if (!order) return;
-  const previousStatus = order.status;
-  order.status = statusControl.value;
-  if (saveAdminStorage(adminStorageKeys.orders, adminOrders)) {
-    renderAdminDashboard();
-    showToast(`Actualizamos el estado del pedido ${order.id}.`);
-  } else {
-    order.status = previousStatus;
-  }
+  updateAdminOrderStatus(statusControl);
 });
 $("[data-mystery-size]").addEventListener("change", (event) => {
   if (!currentBoxResult || currentBoxResult.addedToCart) return;
@@ -1952,42 +2175,10 @@ $("[data-contact-form]").addEventListener("submit", async (event) => {
 $("[data-stylist-form]").addEventListener("submit", sendStylistMessage);
 checkStylistHealth();
 
-$("[data-login-form]").addEventListener("submit", (event) => {
-  event.preventDefault();
-  if (loginMode === "admin") {
-    closeOverlay();
-    openAdminPanel();
-    event.currentTarget.reset();
-    return;
-  }
-  const email = new FormData(event.currentTarget).get("email");
-  $("[data-login-message]").textContent = `¡Hola! El inicio de sesión de ${email} es una demostración.`;
-  event.currentTarget.reset();
-});
-
-$("[data-checkout-form]").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const orderNumber = Math.floor(100000 + Math.random() * 900000);
-  const order = {
-    id: `Q-${orderNumber}`,
-    createdAt: new Date().toISOString(),
-    total: [...cart.values()].reduce((sum, item) => sum + item.product.price * item.quantity, 0),
-    items: [...cart.values()].map((item) => `${item.quantity} × ${item.product.name}`),
-    status: "Pendiente",
-    source: "checkout-demo",
-  };
-  adminOrders.unshift(order);
-  saveAdminStorage(adminStorageKeys.orders, adminOrders);
-  $("[data-checkout-message]").textContent = `¡Pedido de demostración #${orderNumber} listo! No se realizó ningún pago.`;
-  event.currentTarget.reset();
-  cart.clear();
-  renderCart();
-  window.setTimeout(() => {
-    closeOverlay();
-    showToast("Gracias por elegir Queen. ¡Hasta pronto!");
-    renderAdminDashboard();
-  }, 2400);
-});
+$("[data-login-form]").addEventListener("submit", submitLogin);
+$("[data-checkout-form]").addEventListener("submit", submitCheckout);
+updateAccountUI();
+restoreAuthSession();
 
 function expandLinkedInfo() {
   const target = document.getElementById(window.location.hash.slice(1));

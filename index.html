@@ -15,10 +15,10 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=queen-uruguay-1" />
+    <link rel="stylesheet" href="styles.css?v=queen-accounts-1" />
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.1.0/model-viewer.min.js"></script>
     <script>window.QUEEN_API_BASE_URL = "https://queen-geuw.onrender.com";</script>
-    <script src="app.js?v=queen-backend-1" defer></script>
+    <script src="app.js?v=queen-accounts-1" defer></script>
   </head>
   <body>
     <div class="announcement">
@@ -207,7 +207,7 @@
               <div><span class="rarity-dot limited"></span> Edición limitada <strong>5%</strong></div>
               <p>Probabilidades iniciales por prenda. No se repiten prendas; si se agota una rareza, sus chances se redistribuyen. El valor de lista siempre supera el precio.</p>
             </div>
-            <p class="demo-payment-note">Experiencia de muestra: no se cobra, no se procesa ningún pago y no se reserva stock.</p>
+            <p class="demo-payment-note">El pedido se guarda con pago pendiente. No se cobra ni se reserva stock.</p>
             <button class="button button-dark mystery-open-button" type="button" data-open-mystery>Preparar caja de muestra <span data-mystery-price>$U 2.490</span></button>
             <button class="button button-light mystery-cart-button" type="button" data-add-mystery disabled>Agregar caja al carrito <span aria-hidden="true">↗</span></button>
           </div>
@@ -319,7 +319,7 @@
         <div class="info-list">
           <details id="envios"><summary>Envíos y cambios <span aria-hidden="true">＋</span></summary><p>Enviamos a los 19 departamentos de Uruguay, incluida Montevideo. En compras desde $U 5.000, el envío es gratis; en las demás, el costo se calcula al finalizar la compra. Podés solicitar un cambio dentro de los 30 días de recibir tu pedido, siempre que la prenda esté sin uso y con sus etiquetas.</p></details>
           <details id="talles"><summary>Guía de talles <span aria-hidden="true">＋</span></summary><p>Las prendas están disponibles en talles S, M y L. Si tenés dudas sobre el calce, escribinos a <a href="mailto:mongitouwu@gmail.com">mongitouwu@gmail.com</a> y te ayudamos a elegir.</p></details>
-          <details id="privacidad"><summary>Privacidad y pagos <span aria-hidden="true">＋</span></summary><p>Esta tienda es una demostración: no procesa pagos ni crea cuentas. El formulario de contacto envía tu consulta a mongitouwu@gmail.com; Queen no almacena esos datos. Las opciones de pago del checkout son ilustrativas.</p></details>
+          <details id="privacidad"><summary>Privacidad y pagos <span aria-hidden="true">＋</span></summary><p>Queen guarda los datos de las cuentas y los pedidos en su base de datos para poder brindar el servicio. Las contraseñas se almacenan protegidas mediante hash. El checkout registra pedidos con pago pendiente, pero todavía no procesa pagos: no ingreses ni envíes datos de tarjetas. El formulario de contacto envía tu consulta a mongitouwu@gmail.com.</p></details>
         </div>
       </section>
     </main>
@@ -352,19 +352,22 @@
     <section class="modal" data-login-modal role="dialog" aria-modal="true" aria-labelledby="login-title" aria-hidden="true">
       <button class="close-button modal-close" type="button" data-close-modal aria-label="Cerrar">×</button>
       <p class="eyebrow">QUÉ BUENO VERTE</p><h2 id="login-title">Tu espacio,<br /><em>tu estilo.</em></h2>
-      <p class="modal-intro">Iniciá sesión para tener tus favoritos y pedidos en un solo lugar.</p>
+      <p class="modal-intro">Iniciá sesión o creá una cuenta para agilizar tu compra. También podés finalizar como invitada.</p>
       <div class="login-modes" role="tablist" aria-label="Tipo de acceso">
         <button class="login-mode active" type="button" role="tab" aria-selected="true" data-login-mode="customer">Mi cuenta</button>
+        <button class="login-mode" type="button" role="tab" aria-selected="false" data-login-mode="register">Crear cuenta</button>
         <button class="login-mode" type="button" role="tab" aria-selected="false" data-login-mode="admin">Administración</button>
       </div>
       <form class="account-form" data-login-form>
+        <div data-login-name-field hidden><label for="login-name">Nombre y apellido</label><input id="login-name" name="name" autocomplete="name" maxlength="100" /></div>
         <label for="login-email">Correo electrónico</label><input id="login-email" name="email" type="email" autocomplete="email" placeholder="nombre@correo.com" required />
-        <label for="login-password">Contraseña</label><input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Mínimo 6 caracteres" minlength="6" required />
+        <label for="login-password">Contraseña</label><input id="login-password" name="password" type="password" autocomplete="current-password" placeholder="Mínimo 8 caracteres" minlength="8" maxlength="128" required />
         <button class="button button-dark" type="submit" data-login-submit>Iniciar sesión <span aria-hidden="true">↗</span></button>
       </form>
       <p class="form-message account-message" data-login-message aria-live="polite"></p>
-      <p class="login-demo-note" data-login-demo-note hidden>Panel de muestra: cualquier correo válido y contraseña de 6 caracteres permiten entrar. No hay autenticación real; este acceso no protege datos.</p>
-      <p class="modal-footnote" data-login-footnote>¿Todavía no tenés cuenta? <a href="mailto:mongitouwu@gmail.com">Escribinos</a></p>
+      <div class="account-session" data-account-status hidden><span data-account-greeting></span><button type="button" data-account-logout>Cerrar sesión</button></div>
+      <p class="login-demo-note" data-login-demo-note hidden>El acceso de administración requiere las credenciales privadas configuradas en el servidor.</p>
+      <p class="modal-footnote" data-login-footnote>¿Todavía no tenés cuenta? Elegí <strong>Crear cuenta</strong>.</p>
     </section>
 
     <section class="modal checkout-modal" data-checkout-modal role="dialog" aria-modal="true" aria-labelledby="checkout-title" aria-hidden="true">
@@ -387,22 +390,22 @@
         <label for="checkout-address">Dirección de entrega</label><input id="checkout-address" name="address" autocomplete="street-address" required />
         <label for="checkout-payment">Medio de pago</label>
         <select id="checkout-payment" name="payment" required><option value="Tarjeta de crédito o débito">Tarjeta de crédito o débito</option><option value="Transferencia bancaria">Transferencia bancaria</option><option value="Mercado Pago">Mercado Pago</option></select>
-        <div class="checkout-total"><span>Total a pagar</span><strong data-checkout-total>$0</strong></div>
+        <div class="checkout-total"><span>Subtotal · envío a coordinar</span><strong data-checkout-total>$0</strong></div>
         <button class="button button-dark" type="submit">Confirmar pedido <span aria-hidden="true">↗</span></button>
       </form>
-      <p class="checkout-disclaimer">Demostración de tienda: no se procesan pagos ni se guardan datos.</p>
+      <p class="checkout-disclaimer">El pedido se guardará con pago pendiente. No se realizará ningún cobro; no ingreses datos de tarjeta.</p>
       <p class="form-message" data-checkout-message aria-live="polite"></p>
     </section>
 
     <section class="admin-panel" data-admin-panel hidden aria-label="Panel de administración Queen" aria-hidden="true">
       <header class="admin-topbar">
         <a class="admin-wordmark" href="#" aria-label="Queen administración">QUEEN<span>®</span><small>STUDIO</small></a>
-        <div class="admin-topbar-center"><span class="admin-live-dot"></span> Panel de gestión <span class="admin-demo-badge">DEMO LOCAL</span></div>
+        <div class="admin-topbar-center"><span class="admin-live-dot"></span> Panel de gestión <span class="admin-demo-badge">PEDIDOS DEL SERVIDOR</span></div>
         <button class="admin-exit-button" type="button" data-admin-logout><span aria-hidden="true">↗</span> Volver a la tienda</button>
       </header>
       <div class="admin-layout">
         <aside class="admin-sidebar">
-          <div class="admin-store-switcher"><span class="admin-store-avatar">Q</span><span><strong>Queen Store</strong><small>Administrador de muestra</small></span><span class="admin-switch-chevron">⌄</span></div>
+          <div class="admin-store-switcher"><span class="admin-store-avatar">Q</span><span><strong>Queen Store</strong><small>Queen Administradora</small></span><span class="admin-switch-chevron">⌄</span></div>
           <p class="admin-nav-label">GESTIÓN</p>
           <nav class="admin-nav" aria-label="Secciones de administración">
             <button type="button" class="active" data-admin-nav="overview"><span>◫</span> Resumen</button>
@@ -410,25 +413,25 @@
             <button type="button" data-admin-nav="orders"><span>◷</span> Pedidos <span class="admin-nav-count" data-admin-order-count>4</span></button>
             <button type="button" data-admin-nav="analytics"><span>⌁</span> Estadísticas</button>
           </nav>
-          <div class="admin-sidebar-note"><span>✳</span><strong>Una tienda, a tu manera.</strong><p>El catálogo y los pedidos de esta demo se guardan solo en este navegador.</p></div>
+          <div class="admin-sidebar-note"><span>✳</span><strong>Una tienda, a tu manera.</strong><p>Los pedidos se guardan en el servidor; los cambios del catálogo siguen siendo locales a este navegador.</p></div>
           <button type="button" class="admin-help-link" data-admin-help>?</button>
         </aside>
 
         <main class="admin-main">
           <section class="admin-view active" data-admin-page="overview">
             <div class="admin-page-heading"><div><p class="admin-breadcrumb">Queen Store <span>/</span> Resumen</p><h1>Buen día, Queen <span>✳</span></h1><p>Así se mueve tu tienda hoy.</p></div><button class="admin-primary-button" type="button" data-admin-create><span>＋</span> Agregar producto</button></div>
-            <div class="admin-demo-banner"><span>◉</span><p><strong>Estás en modo demostración.</strong> Las ventas y los pedidos de ejemplo no son reales; no se procesa ningún pago.</p><button type="button" data-admin-dismiss-notice aria-label="Cerrar aviso">×</button></div>
+            <div class="admin-demo-banner"><span>◉</span><p><strong>Pedidos reales, pagos pendientes.</strong> Los pedidos llegan desde el checkout. No se procesa ni confirma ningún pago.</p><button type="button" data-admin-dismiss-notice aria-label="Cerrar aviso">×</button></div>
             <div class="admin-stat-grid">
-              <article class="admin-stat-card"><div><span>Ventas de muestra</span><span class="admin-stat-icon">↗</span></div><strong data-admin-sales>$0</strong><small><span class="admin-trend">↗</span> Datos ficticios del panel</small></article>
+              <article class="admin-stat-card"><div><span>Importe de pedidos</span><span class="admin-stat-icon">↗</span></div><strong data-admin-sales>$0</strong><small>Pagos aún pendientes de confirmación</small></article>
               <article class="admin-stat-card"><div><span>Pedidos</span><span class="admin-stat-icon">▧</span></div><strong data-admin-total-orders>0</strong><small><span data-admin-pending-orders>0</span> pendientes de preparación</small></article>
               <article class="admin-stat-card"><div><span>Productos publicados</span><span class="admin-stat-icon">▤</span></div><strong data-admin-active-products>0</strong><small><span data-admin-total-products>0</span> en total en el catálogo</small></article>
               <article class="admin-stat-card"><div><span>Stock bajo</span><span class="admin-stat-icon warning">!</span></div><strong data-admin-low-stock>0</strong><small>Productos con 5 unidades o menos</small></article>
             </div>
             <div class="admin-overview-grid">
-              <article class="admin-card admin-chart-card"><div class="admin-card-heading"><div><h2>Ventas de muestra</h2><p>Actividad ilustrativa · últimos 7 días</p></div><span class="admin-chart-total" data-admin-chart-total>$0</span></div><div class="admin-chart" data-admin-chart aria-label="Gráfico de ventas de muestra"></div><div class="admin-chart-labels"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div></article>
+              <article class="admin-card admin-chart-card"><div class="admin-card-heading"><div><h2>Importe de pedidos</h2><p>Pedidos recibidos · últimos 7 días</p></div><span class="admin-chart-total" data-admin-chart-total>$0</span></div><div class="admin-chart" data-admin-chart aria-label="Gráfico del importe de pedidos"></div><div class="admin-chart-labels"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div></article>
               <article class="admin-card admin-quick-card"><div class="admin-card-heading"><div><h2>Mirada rápida</h2><p>Lo que necesita atención</p></div><span class="admin-quick-mark">Q.</span></div><button type="button" data-admin-nav-target="products"><span class="admin-quick-icon">▤</span><span><strong><span data-admin-low-stock-inline>0</span> productos con poco stock</strong><small>Revisá tu inventario</small></span><span>↗</span></button><button type="button" data-admin-nav-target="orders"><span class="admin-quick-icon">◷</span><span><strong><span data-admin-pending-inline>0</span> pedidos por preparar</strong><small>Organizá los próximos envíos</small></span><span>↗</span></button></article>
             </div>
-            <article class="admin-card admin-recent-card"><div class="admin-card-heading"><div><h2>Pedidos recientes</h2><p>Actividad de muestra, no ventas reales.</p></div><button class="admin-link-button" type="button" data-admin-nav-target="orders">Ver todos <span>↗</span></button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>PEDIDO</th><th>ARTÍCULOS</th><th>FECHA</th><th>IMPORTE</th><th>ESTADO</th></tr></thead><tbody data-admin-recent-orders></tbody></table></div></article>
+            <article class="admin-card admin-recent-card"><div class="admin-card-heading"><div><h2>Pedidos recientes</h2><p>Todos los pedidos registrados en Queen.</p></div><button class="admin-link-button" type="button" data-admin-nav-target="orders">Ver todos <span>↗</span></button></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>PEDIDO</th><th>ARTÍCULOS</th><th>FECHA</th><th>IMPORTE</th><th>ESTADO</th></tr></thead><tbody data-admin-recent-orders></tbody></table></div></article>
           </section>
 
           <section class="admin-view" data-admin-page="products" hidden>
@@ -438,21 +441,21 @@
           </section>
 
           <section class="admin-view" data-admin-page="orders" hidden>
-            <div class="admin-page-heading"><div><p class="admin-breadcrumb">Queen Store <span>/</span> Pedidos</p><h1>Pedidos.</h1><p>Seguí la preparación de tus pedidos de muestra.</p></div><span class="admin-page-count"><strong data-orders-view-count>0</strong> pedidos de muestra</span></div>
-            <div class="admin-demo-banner compact"><span>◉</span><p>Los pedidos de ejemplo y los que generes en el checkout son demostrativos. No hay clientes ni pagos reales.</p></div>
-            <div class="admin-product-toolbar"><label class="admin-search"><span>⌕</span><input type="search" placeholder="Buscar un pedido" data-admin-order-search aria-label="Buscar pedidos de muestra" /></label><label class="admin-filter-label">Estado <select data-admin-order-filter aria-label="Filtrar pedidos por estado"><option value="all">Todos</option><option value="Pendiente">Pendiente</option><option value="Preparando">Preparando</option><option value="Enviado">Enviado</option><option value="Entregado">Entregado</option></select></label></div>
+            <div class="admin-page-heading"><div><p class="admin-breadcrumb">Queen Store <span>/</span> Pedidos</p><h1>Pedidos.</h1><p>Seguí la preparación de pedidos reales.</p></div><span class="admin-page-count"><strong data-orders-view-count>0</strong> pedidos registrados</span></div>
+            <div class="admin-demo-banner compact"><span>◉</span><p>Los pedidos se guardan en PostgreSQL. El pago permanece pendiente hasta integrar y confirmar un proveedor.</p></div>
+            <div class="admin-product-toolbar"><label class="admin-search"><span>⌕</span><input type="search" placeholder="Buscar un pedido" data-admin-order-search aria-label="Buscar pedidos registrados" /></label><label class="admin-filter-label">Estado <select data-admin-order-filter aria-label="Filtrar pedidos por estado"><option value="all">Todos</option><option value="Pendiente">Pendiente</option><option value="Preparando">Preparando</option><option value="Enviado">Enviado</option><option value="Entregado">Entregado</option><option value="Cancelado">Cancelado</option></select></label></div>
             <article class="admin-card admin-product-card"><div class="admin-table-wrap"><table class="admin-table admin-orders-table"><thead><tr><th>PEDIDO</th><th>COMPRADOR</th><th>ARTÍCULOS</th><th>FECHA</th><th>TOTAL</th><th>ESTADO</th></tr></thead><tbody data-admin-orders></tbody></table></div><div class="admin-mobile-orders" data-admin-mobile-orders></div><div class="admin-empty-state" data-admin-empty-orders hidden><span>◷</span><strong>No hay pedidos con ese filtro</strong><p>Cuando haya pedidos, van a aparecer acá.</p></div></article>
           </section>
 
           <section class="admin-view" data-admin-page="analytics" hidden>
-            <div class="admin-page-heading"><div><p class="admin-breadcrumb">Queen Store <span>/</span> Estadísticas</p><h1>Los números de Queen.</h1><p>Una vista simple del rendimiento de muestra.</p></div><span class="admin-page-count">DEMO · SIN VENTAS REALES</span></div>
+            <div class="admin-page-heading"><div><p class="admin-breadcrumb">Queen Store <span>/</span> Estadísticas</p><h1>Los números de Queen.</h1><p>Pedidos registrados y catálogo local.</p></div><span class="admin-page-count">PEDIDOS DEL SERVIDOR</span></div>
             <div class="admin-stat-grid analytics-stat-grid">
-              <article class="admin-stat-card"><div><span>Facturación simulada</span><span class="admin-stat-icon">↗</span></div><strong data-admin-sales>$0</strong><small>Importes de pedidos de ejemplo</small></article>
+              <article class="admin-stat-card"><div><span>Importe de pedidos</span><span class="admin-stat-icon">↗</span></div><strong data-admin-sales>$0</strong><small>Pagos pendientes de confirmación</small></article>
               <article class="admin-stat-card"><div><span>Valor promedio</span><span class="admin-stat-icon">◉</span></div><strong data-admin-average>$0</strong><small>Ticket medio ilustrativo</small></article>
-              <article class="admin-stat-card"><div><span>Artículos en catálogo</span><span class="admin-stat-icon">▤</span></div><strong data-admin-total-products>0</strong><small>Prendas cargadas en esta demo</small></article>
-              <article class="admin-stat-card"><div><span>Unidades disponibles</span><span class="admin-stat-icon">◷</span></div><strong data-admin-stock-units>0</strong><small>Stock total de muestra</small></article>
+              <article class="admin-stat-card"><div><span>Artículos en catálogo</span><span class="admin-stat-icon">▤</span></div><strong data-admin-total-products>0</strong><small>Catálogo de este navegador</small></article>
+              <article class="admin-stat-card"><div><span>Unidades disponibles</span><span class="admin-stat-icon">◷</span></div><strong data-admin-stock-units>0</strong><small>Stock del catálogo local</small></article>
             </div>
-            <article class="admin-card admin-analytics-card"><div class="admin-card-heading"><div><h2>Artículos más vendidos</h2><p>Se calcula con los pedidos de muestra visibles en este panel.</p></div></div><div class="admin-top-products" data-admin-top-products></div></article>
+            <article class="admin-card admin-analytics-card"><div class="admin-card-heading"><div><h2>Artículos en pedidos</h2><p>Se calcula con los pedidos registrados en el servidor.</p></div></div><div class="admin-top-products" data-admin-top-products></div></article>
           </section>
         </main>
       </div>

@@ -1,3 +1,6 @@
+const API_BASE_URL = (window.QUEEN_API_BASE_URL || "").replace(/\/+$/, "");
+const apiUrl = (path) => `${API_BASE_URL}${path}`;
+
 const products = [
   {
     id: "camisa-siena",
@@ -825,12 +828,12 @@ function appendStylistMessage(role, text) {
 async function checkStylistHealth() {
   const status = $("[data-stylist-status]");
   try {
-    const response = await fetch("/api/health", { headers: { Accept: "application/json" } });
+    const response = await fetch(apiUrl("/api/health"), { headers: { Accept: "application/json" } });
     if (!response.ok) throw new Error(`Estado del servidor: ${response.status}`);
     const health = await response.json();
     status.textContent = health.configured
       ? "Clave cargada en este servidor · probá una consulta."
-      : "Agregá la clave de Gemini en server.py y reiniciá el servidor.";
+      : "La asesora todavía no está configurada en el servidor.";
     status.classList.toggle("ready", Boolean(health.configured));
   } catch (error) {
     console.error("No se pudo consultar el estado de Queen Stylist.", error);
@@ -857,7 +860,7 @@ async function sendStylistMessage(event) {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), 25000);
   try {
-    const response = await fetch("/api/stylist", {
+    const response = await fetch(apiUrl("/api/stylist"), {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
@@ -1917,7 +1920,7 @@ $("[data-contact-form]").addEventListener("submit", async (event) => {
   const timeoutId = window.setTimeout(() => controller.abort(), 30000);
 
   try {
-    const response = await fetch("/api/contact", {
+    const response = await fetch(apiUrl("/api/contact"), {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(Object.fromEntries(new FormData(form).entries())),

@@ -1,6 +1,8 @@
+// La URL del backend se configura en index.html; todas las llamadas API pasan por apiUrl.
 const API_BASE_URL = (window.QUEEN_API_BASE_URL || "").replace(/\/+$/, "");
 const apiUrl = (path) => `${API_BASE_URL}${path}`;
 
+// Catálogo inicial usado para renderizar la tienda y para armar el checkout.
 const products = [
   {
     id: "camisa-siena",
@@ -224,6 +226,7 @@ const products = [
   },
 ];
 
+// Imágenes y textos editoriales que acompañan cada categoría del catálogo.
 const inspirationLooks = {
   camisas: [
     { image: "photo-1598033129183-c4f50c736f10", alt: "Camisa clara combinada en un look relajado", title: "Relajada, todos los días", detail: "Lino, luz suave y tiempo para vos." },
@@ -247,6 +250,7 @@ const inspirationLooks = {
   ],
 };
 
+// Contenido del carrusel principal: cada entrada define imagen, título y enlace.
 const slides = [
   {
     kicker: "PRIMAVERA · 2026",
@@ -271,6 +275,7 @@ const slides = [
   },
 ];
 
+// El carrito vive en memoria mientras la página está abierta; la clave combina prenda y talle.
 const cart = new Map();
 const boxTiers = {
   essential: { price: 2490, count: 2 },
@@ -299,6 +304,7 @@ const remoteProductModelIds = new Set();
 const localProductModelIds = new Set();
 let productModelDatabasePromise;
 
+// La sesión se guarda por pestaña; el token se adjunta a las solicitudes protegidas.
 function saveAuthSession(session) {
   authSession = session;
   try {
@@ -318,6 +324,7 @@ function clearAuthSession() {
   }
 }
 
+// Centraliza errores HTTP y agrega la sesión sin incluir datos sensibles del formulario de tarjeta.
 async function apiRequest(path, options = {}) {
   const headers = new Headers(options.headers || {});
   headers.set("Accept", "application/json");
@@ -358,6 +365,7 @@ function saveAdminStorage(key, value) {
   }
 }
 
+// IndexedDB conserva compatibilidad con los GLB locales antiguos y permite abrirlos como respaldo.
 function openProductModelDatabase() {
   if (productModelDatabasePromise) return productModelDatabasePromise;
   if (!("indexedDB" in window)) {
@@ -419,6 +427,7 @@ async function deleteProductModel(productId) {
   });
 }
 
+// Combina modelos anunciados por PostgreSQL y modelos locales heredados para actualizar la tienda.
 function updateProductModelIds() {
   productModelIds.clear();
   remoteProductModelIds.forEach((productId) => productModelIds.add(productId));
@@ -437,6 +446,7 @@ async function refreshRemoteProductModelIds() {
   updateProductModelIds();
 }
 
+// Al iniciar sesión como admin, migra GLB antiguos al backend y borra la copia local solo tras confirmar.
 async function syncLegacyProductModels() {
   try {
     await refreshRemoteProductModelIds();
@@ -476,6 +486,7 @@ async function removeStoredProductModel(productId) {
   updateProductModelIds();
 }
 
+// Comprueba extensión, tamaño y cabecera GLB 2.0 antes de subir; el servidor repite la validación.
 async function validateGlbFile(file) {
   if (!file.name.toLocaleLowerCase("es").endsWith(".glb")) {
     throw new Error("Elegí un archivo .glb.");
@@ -767,6 +778,7 @@ let adminOrderFilter = "all";
 
 migrateLegacyAdminPrices();
 
+// Efectos de entrada y generación de tarjetas visuales del catálogo.
 function observeReveals() {
   if (!revealObserver) return;
   $$(".reveal-on-scroll:not([data-reveal-observed])").forEach((element) => {
@@ -830,6 +842,7 @@ function renderProducts() {
   observeReveals();
 }
 
+// Aplica categoría, precio, búsqueda y orden antes de dibujar las tarjetas del catálogo.
 function renderCatalog() {
   let visibleProducts = products.filter((product) => {
     if (!isPublicProduct(product)) return false;
@@ -882,6 +895,7 @@ function renderInspiration(productId = $("[data-inspiration-product]").value) {
   observeReveals();
 }
 
+// Cambia la diapositiva activa y sincroniza textos, imagen y controles del carrusel.
 function setSlide(index) {
   slideIndex = (index + slides.length) % slides.length;
   const slide = slides[slideIndex];
@@ -932,6 +946,7 @@ function appendStylistMessage(role, text) {
   message.scrollIntoView({ block: "nearest" });
 }
 
+// Comprueba si el endpoint de asesoría está configurado antes de habilitar el formulario.
 async function checkStylistHealth() {
   const status = $("[data-stylist-status]");
   try {
@@ -1015,6 +1030,7 @@ async function sendStylistMessage(event) {
   }
 }
 
+// Maneja la capa oscura compartida por el carrito y los diálogos.
 function openOverlay() {
   $("[data-overlay]").classList.add("open");
   document.body.classList.add("locked");
@@ -1052,6 +1068,7 @@ function openModal(modal) {
   if (firstInput) window.setTimeout(() => firstInput.focus(), 150);
 }
 
+// Agrega una prenda/talle y evita superar el stock mostrado en el catálogo.
 function addToCart(productId, size) {
   const product = products.find((item) => item.id === productId);
   if (!product || !isPublicProduct(product) || product.stock < 1) {
@@ -1078,6 +1095,7 @@ function updateQuantity(key, amount) {
   renderCart();
 }
 
+// Calcula subtotal y envío gratis, y reconstruye visualmente las líneas del carrito.
 function renderCart() {
   const entries = [...cart.entries()];
   const count = entries.reduce((total, [, item]) => total + item.quantity, 0);
@@ -1164,6 +1182,7 @@ function updateBoxTier() {
   }
 }
 
+// Elige prendas disponibles al azar, ponderando rarezas para armar la caja sorpresa.
 function chooseBoxItems(count) {
   const weights = { everyday: 72, special: 23, limited: 5 };
   const remaining = products.filter((product) => isPublicProduct(product) && product.stock > 0);
@@ -1333,6 +1352,7 @@ function addMysteryBoxToCart() {
   showToast("Tu caja se agregó al carrito. El pedido quedará pendiente; no se realizará ningún cobro.");
 }
 
+// Muestra una sola vista del panel y sincroniza el estado accesible de su navegación.
 function updateAdminNavigation(pageName) {
   activeAdminPage = pageName;
   $$("[data-admin-nav]").forEach((button) => {
@@ -1435,6 +1455,7 @@ function adminProductModelControl(product) {
     </div>`;
 }
 
+// Dibuja productos y controles admin a partir de los datos guardados localmente.
 function renderAdminProducts() {
   const search = adminProductSearch.trim().toLocaleLowerCase("es");
   const filtered = products
@@ -1478,6 +1499,7 @@ function renderAdminProducts() {
   $("[data-admin-product-count]").textContent = products.length;
 }
 
+// Presenta pedidos recibidos del backend y permite filtrar/actualizar su preparación.
 function renderAdminOrders() {
   const search = adminOrderSearch.trim().toLocaleLowerCase("es");
   const filtered = adminOrders
@@ -1569,6 +1591,7 @@ function refreshPublicCatalog() {
   renderInspiration(nextProductId);
 }
 
+// Cambia entre acceso de cliente, registro y acceso administrativo.
 function setLoginMode(mode) {
   loginMode = mode;
   $$("[data-login-mode]").forEach((button) => {
@@ -1605,6 +1628,7 @@ function updateAccountUI() {
   }
 }
 
+// Verifica con el backend el token guardado antes de confiar en el usuario o habilitar el admin.
 async function restoreAuthSession() {
   let savedSession;
   try {
@@ -1665,6 +1689,7 @@ async function updateAdminOrderStatus(statusControl) {
   }
 }
 
+// Envía credenciales al backend y guarda el token de sesión al recibir respuesta válida.
 async function submitLogin(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -1725,6 +1750,58 @@ async function logoutAccount() {
   $("[data-login-message]").textContent = "";
 }
 
+// Luhn detecta errores en el dígito de control; no verifica emisor, fondos ni vigencia bancaria.
+function passesLuhnCheck(value) {
+  const digits = value.replace(/\D/g, "");
+  if (!/^\d{13,19}$/.test(digits)) return false;
+  let sum = 0;
+  let doubleDigit = false;
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index]);
+    if (doubleDigit) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    doubleDigit = !doubleDigit;
+  }
+  return sum % 10 === 0;
+}
+
+function updateDemoCardFields() {
+  const fields = $("[data-demo-card-fields]");
+  const isCardDemo = $("#checkout-payment").value === "Tarjeta de crédito o débito";
+  fields.hidden = !isCardDemo;
+  fields.querySelectorAll("input").forEach((input) => {
+    input.required = isCardDemo;
+    if (!isCardDemo) input.value = "";
+  });
+}
+
+// Acepta solo la tarjeta fija de la demo; vencimiento y CVV son locales y nunca viajan al servidor.
+function validateDemoCard() {
+  const cardNumber = $("[data-demo-card-number]").value.replace(/\D/g, "");
+  const expiry = $("[data-demo-card-expiry]").value;
+  const cvv = $("[data-demo-card-cvv]").value;
+  if (!passesLuhnCheck(cardNumber)) {
+    return "El número no pasa la validación de Luhn.";
+  }
+  if (cardNumber !== "4242424242424242") {
+    return "La simulación solo acepta el número de prueba 4242 4242 4242 4242.";
+  }
+  const expiryMatch = /^(0[1-9]|1[0-2])\/(\d{2})$/.exec(expiry);
+  if (!expiryMatch) return "Ingresá el vencimiento de prueba como MM/AA.";
+  const month = Number(expiryMatch[1]);
+  const year = 2000 + Number(expiryMatch[2]);
+  const now = new Date();
+  if (year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth() + 1)) {
+    return "Para la simulación, usá un vencimiento futuro.";
+  }
+  if (!/^\d{3}$/.test(cvv)) return "Ingresá un código de seguridad de prueba de 3 dígitos.";
+  return "";
+}
+
+// Guarda el pedido pendiente enviando solo datos de entrega, método de pago e ítems (nunca PAN/CVV).
 async function submitCheckout(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -1735,6 +1812,13 @@ async function submitCheckout(event) {
     return;
   }
   const formData = new FormData(form);
+  if (formData.get("payment") === "Tarjeta de crédito o débito") {
+    const cardError = validateDemoCard();
+    if (cardError) {
+      message.textContent = cardError;
+      return;
+    }
+  }
   const items = [...cart.values()].map((item) => ({
     productId: item.product.mysteryBox ? undefined : item.product.id,
     boxTier: item.product.boxTier,
@@ -1766,6 +1850,7 @@ async function submitCheckout(event) {
       ? `Pedido ${order.id} guardado con pago pendiente. No se realizó ningún cobro; te enviamos la confirmación por correo.`
       : `Pedido ${order.id} guardado con pago pendiente, pero no pudimos confirmar el envío del correo. No se realizó ningún cobro.`;
     form.reset();
+    updateDemoCardFields();
     if (authSession?.user) updateAccountUI();
     cart.clear();
     renderCart();
@@ -1782,6 +1867,7 @@ async function submitCheckout(event) {
   }
 }
 
+// Valida y persiste el producto editado en el almacenamiento local usado por el panel.
 function saveAdminProduct(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -2248,6 +2334,21 @@ checkStylistHealth();
 
 $("[data-login-form]").addEventListener("submit", submitLogin);
 $("[data-checkout-form]").addEventListener("submit", submitCheckout);
+$("#checkout-payment").addEventListener("change", updateDemoCardFields);
+$("[data-demo-card-number]").addEventListener("input", (event) => {
+  const digits = event.currentTarget.value.replace(/\D/g, "").slice(0, 16);
+  event.currentTarget.value = digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+});
+$("[data-demo-card-expiry]").addEventListener("input", (event) => {
+  const digits = event.currentTarget.value.replace(/\D/g, "").slice(0, 4);
+  event.currentTarget.value = digits.length > 2
+    ? `${digits.slice(0, 2)}/${digits.slice(2)}`
+    : digits;
+});
+$("[data-demo-card-cvv]").addEventListener("input", (event) => {
+  event.currentTarget.value = event.currentTarget.value.replace(/\D/g, "").slice(0, 3);
+});
+updateDemoCardFields();
 updateAccountUI();
 restoreAuthSession();
 

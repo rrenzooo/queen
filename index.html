@@ -15,10 +15,10 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=queen-accounts-1" />
+    <link rel="stylesheet" href="styles.css?v=queen-card-demo-1" />
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.1.0/model-viewer.min.js"></script>
     <script>window.QUEEN_API_BASE_URL = "https://queen-geuw.onrender.com";</script>
-    <script src="app.js?v=queen-models-1" defer></script>
+    <script src="app.js?v=queen-card-demo-1" defer></script>
   </head>
   <body>
     <div class="announcement">
@@ -52,6 +52,7 @@
       </div>
     </header>
 
+    <!-- Tienda pública: portada, catálogo, inspiración, caja sorpresa y contenido institucional. -->
     <main>
       <section class="hero" aria-label="Nueva colección">
         <div class="hero-image" data-hero-image></div>
@@ -319,7 +320,7 @@
         <div class="info-list">
           <details id="envios"><summary>Envíos y cambios <span aria-hidden="true">＋</span></summary><p>Enviamos a los 19 departamentos de Uruguay, incluida Montevideo. En compras desde $U 5.000, el envío es gratis; en las demás, el costo se calcula al finalizar la compra. Podés solicitar un cambio dentro de los 30 días de recibir tu pedido, siempre que la prenda esté sin uso y con sus etiquetas.</p></details>
           <details id="talles"><summary>Guía de talles <span aria-hidden="true">＋</span></summary><p>Las prendas están disponibles en talles S, M y L. Si tenés dudas sobre el calce, escribinos a <a href="mailto:mongitouwu@gmail.com">mongitouwu@gmail.com</a> y te ayudamos a elegir.</p></details>
-          <details id="privacidad"><summary>Privacidad y pagos <span aria-hidden="true">＋</span></summary><p>Queen guarda los datos de las cuentas y los pedidos en su base de datos para poder brindar el servicio. Las contraseñas se almacenan protegidas mediante hash. El checkout registra pedidos con pago pendiente, pero todavía no procesa pagos: no ingreses ni envíes datos de tarjetas. El formulario de contacto envía tu consulta a mongitouwu@gmail.com.</p></details>
+          <details id="privacidad"><summary>Privacidad y pagos <span aria-hidden="true">＋</span></summary><p>Queen guarda los datos de las cuentas y los pedidos en su base de datos para poder brindar el servicio. Las contraseñas se almacenan protegidas mediante hash. El checkout registra pedidos con pago pendiente, pero no procesa pagos. La opción de tarjeta es una simulación local que solo acepta el número de prueba mostrado; los datos de tarjeta no se envían ni guardan. No ingreses datos reales. El formulario de contacto envía tu consulta a mongitouwu@gmail.com.</p></details>
         </div>
       </section>
     </main>
@@ -341,6 +342,7 @@
     </div>
 
     <div class="overlay" data-overlay></div>
+    <!-- El carrito y sus cantidades se generan desde app.js a partir de las selecciones del cliente. -->
     <aside class="cart-drawer" aria-label="Tu carrito" aria-hidden="true">
       <div class="drawer-header"><div><p class="eyebrow">TU SELECCIÓN</p><h2>Tu carrito <span data-cart-heading-count>(0)</span></h2></div><button class="close-button" type="button" data-close-cart aria-label="Cerrar carrito">×</button></div>
       <div class="shipping-progress"><p data-shipping-message>¡Te faltan $U 5.000 para el envío gratis!</p><div class="progress-track"><span data-shipping-progress></span></div></div>
@@ -370,6 +372,7 @@
       <p class="modal-footnote" data-login-footnote>¿Todavía no tenés cuenta? Elegí <strong>Crear cuenta</strong>.</p>
     </section>
 
+    <!-- Checkout: guarda pedidos pendientes; la tarjeta incluida es solo una simulación local. -->
     <section class="modal checkout-modal" data-checkout-modal role="dialog" aria-modal="true" aria-labelledby="checkout-title" aria-hidden="true">
       <button class="close-button modal-close" type="button" data-close-modal aria-label="Cerrar">×</button>
       <p class="eyebrow">UNOS PASOS MÁS</p><h2 id="checkout-title">Finalizá tu<br /><em>compra.</em></h2>
@@ -389,14 +392,25 @@
         </div>
         <label for="checkout-address">Dirección de entrega</label><input id="checkout-address" name="address" autocomplete="street-address" required />
         <label for="checkout-payment">Medio de pago</label>
-        <select id="checkout-payment" name="payment" required><option value="Tarjeta de crédito o débito">Tarjeta de crédito o débito</option><option value="Transferencia bancaria">Transferencia bancaria</option><option value="Mercado Pago">Mercado Pago</option></select>
+        <select id="checkout-payment" name="payment" required><option value="Tarjeta de crédito o débito">Tarjeta (simulación)</option><option value="Transferencia bancaria">Transferencia bancaria</option><option value="Mercado Pago">Mercado Pago</option></select>
+        <div class="card-demo-fields" data-demo-card-fields hidden aria-describedby="card-demo-note">
+          <p class="card-demo-warning" id="card-demo-note">Modo demostración: no se procesa ni guarda ningún dato. Luhn revisa el dígito de control, no valida una tarjeta bancaria. No ingreses tarjetas reales.</p>
+          <p class="card-demo-number">Número para la demo: <strong>4242 4242 4242 4242</strong></p>
+          <label for="checkout-card-number">Número de tarjeta</label>
+          <input id="checkout-card-number" name="demoCardNumber" type="text" inputmode="numeric" autocomplete="off" maxlength="19" placeholder="4242 4242 4242 4242" data-demo-card-number />
+          <div class="form-two-columns">
+            <div><label for="checkout-card-expiry">Vencimiento</label><input id="checkout-card-expiry" name="demoCardExpiry" type="text" inputmode="numeric" autocomplete="off" maxlength="5" placeholder="MM/AA" data-demo-card-expiry /></div>
+            <div><label for="checkout-card-cvv">Código de seguridad</label><input id="checkout-card-cvv" name="demoCardCvv" type="password" inputmode="numeric" autocomplete="off" maxlength="3" placeholder="123" data-demo-card-cvv /></div>
+          </div>
+        </div>
         <div class="checkout-total"><span>Subtotal · envío a coordinar</span><strong data-checkout-total>$0</strong></div>
         <button class="button button-dark" type="submit">Confirmar pedido <span aria-hidden="true">↗</span></button>
       </form>
-      <p class="checkout-disclaimer">El pedido se guardará con pago pendiente. No se realizará ningún cobro; no ingreses datos de tarjeta.</p>
+      <p class="checkout-disclaimer">El pedido se guardará con pago pendiente; no se realizará ningún cobro.</p>
       <p class="form-message" data-checkout-message aria-live="polite"></p>
     </section>
 
+    <!-- Panel protegido por sesión admin; pedidos y modelos se leen/escriben en el backend. -->
     <section class="admin-panel" data-admin-panel hidden aria-label="Panel de administración Queen" aria-hidden="true">
       <header class="admin-topbar">
         <a class="admin-wordmark" href="#" aria-label="Queen administración">QUEEN<span>®</span><small>STUDIO</small></a>

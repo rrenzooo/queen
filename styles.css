@@ -1,3 +1,4 @@
+/* Tokens visuales globales: tipografías, colores y márgenes adaptables. */
 :root {
   font-family: "DM Sans", sans-serif;
   color: #24231f;
@@ -39,6 +40,7 @@ img { display: block; width: 100%; }
 .cart-count { position: absolute; top: -4px; right: -9px; min-width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; background: #bd583e; color: white; font-size: 9px; }
 .menu-toggle { display: none; }
 
+/* Portada y catálogo: tamaños fluidos y animaciones que mantienen el diseño responsive. */
 .hero { position: relative; min-height: min(670px, 67vw); height: 590px; max-height: 76vh; overflow: hidden; color: #fff; background: #413f38; }
 .hero-image { position: absolute; inset: 0; background-position: center 38%; background-size: cover; transform: scale(1.015); transition: opacity .35s ease, transform 7s ease; animation: hero-zoom 9s ease forwards; }
 .hero-image.changing { opacity: .58; }
@@ -384,6 +386,7 @@ h2 { font: 500 clamp(35px, 4vw, 51px)/1.1 var(--serif); letter-spacing: -.035em;
 .checkout-button { width: 100%; justify-content: space-between; }
 .secure-note { display: block; margin-top: 13px; color: var(--muted); font-size: 9px; text-align: center; }
 
+/* Modales compartidos por cuenta y checkout, con tarjeta solo en modo demostración. */
 .modal { position: fixed; z-index: 35; top: 50%; left: 50%; width: min(490px, calc(100% - 34px)); max-height: calc(100vh - 40px); overflow-y: auto; padding: 47px 48px 39px; background: var(--paper); opacity: 0; visibility: hidden; transform: translate(-50%, -47%); transition: opacity .25s ease, transform .25s ease, visibility .25s ease; }
 .modal.open { opacity: 1; visibility: visible; transform: translate(-50%, -50%); }
 .modal .modal-close { position: absolute; top: 16px; right: 16px; }
@@ -397,18 +400,28 @@ h2 { font: 500 clamp(35px, 4vw, 51px)/1.1 var(--serif); letter-spacing: -.035em;
 .account-form > .button { margin-top: 21px; justify-content: space-between; }
 .modal-footnote { margin: 19px 0 0; color: var(--muted); font-size: 9px; text-align: center; }
 .modal-footnote a { color: var(--ink); text-decoration: underline; }
-.login-modes { margin: 20px 0 4px; padding: 3px; display: grid; grid-template-columns: 1fr 1fr; background: #eae7df; }
+.login-modes { margin: 20px 0 4px; padding: 3px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: #eae7df; }
 .login-mode { min-height: 36px; border: 0; background: transparent; color: #77746b; font-size: 9px; cursor: pointer; transition: background .2s ease, color .2s ease; }
 .login-mode.active { background: var(--paper); color: var(--ink); box-shadow: 0 1px 5px #24231f14; }
 .login-demo-note { margin: 15px 0 0; padding: 11px 12px; background: #eee9dc; color: #6b5b40; font-size: 8px; line-height: 1.65; }
 .login-demo-note[hidden] { display: none; }
+.account-session { margin-top: 12px; padding: 11px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #eee9dc; color: #5e594f; font-size: 8px; line-height: 1.6; }
+.account-session[hidden] { display: none; }
+.account-session button { flex: 0 0 auto; padding: 4px 0; border: 0; background: transparent; color: var(--ink); font-size: 8px; text-decoration: underline; cursor: pointer; }
 .checkout-modal { width: min(570px, calc(100% - 34px)); padding-top: 39px; }
 .checkout-modal h2 { font-size: 36px; }
 .form-two-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-two-columns > div { min-width: 0; }
+/* Estos campos se muestran solo al elegir tarjeta y nunca representan un cobro real. */
+.card-demo-fields { margin-top: 12px; padding: 14px; border: 1px solid var(--line); background: rgba(255,255,255,.32); }
+.card-demo-fields[hidden] { display: none; }
+.card-demo-warning, .card-demo-number { margin: 0 0 9px; color: #68665f; font-size: 8px; line-height: 1.65; }
+.card-demo-warning { color: #8c4c36; }
+.card-demo-number strong { color: var(--ink); letter-spacing: .08em; }
 .checkout-total { margin-top: 22px; padding-top: 15px; display: flex; justify-content: space-between; border-top: 1px solid var(--line); font-size: 12px; }
 .checkout-disclaimer { margin: 11px 0 0; color: var(--muted); font-size: 8px; text-align: center; }
 
+/* Administración: layout del panel, vistas, tablas y formularios de gestión. */
 .admin-panel { position: fixed; z-index: 40; inset: 0; display: flex; flex-direction: column; overflow: auto; background: #f7f8fa; color: #242a33; opacity: 0; visibility: hidden; transform: translateY(8px); transition: opacity .22s ease, transform .22s ease, visibility .22s ease; }
 .admin-panel[hidden] { display: none; }
 .admin-panel.active { opacity: 1; visibility: visible; transform: translateY(0); }
@@ -637,6 +650,7 @@ h2 { font: 500 clamp(35px, 4vw, 51px)/1.1 var(--serif); letter-spacing: -.035em;
 .motion-ready .reveal-on-scroll.is-visible { opacity: 1; transform: translateY(0); }
 @keyframes reveal { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
 
+/* Breakpoints que reorganizan navegación, grillas y modales en pantallas pequeñas. */
 @media (min-width: 1500px) { :root { --page-gutter: max(94px, calc((100vw - 1330px) / 2)); } }
 @media (max-width: 900px) {
   .site-header { grid-template-columns: 1fr 1fr 1fr; height: 68px; }
